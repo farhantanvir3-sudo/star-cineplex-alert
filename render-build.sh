@@ -2,36 +2,27 @@
 # exit on error
 set -o errexit
 
-echo "Installing Chromium dependencies for Puppeteer..."
-
-# Install standard required packages for Chromium
-apt-get update
-apt-get install -y \
-  libnss3 \
-  libdbus-1-3 \
-  libatk1.0-0 \
-  libatk-bridge2.0-0 \
-  libcups2 \
-  libdrm2 \
-  libxkbcommon0 \
-  libxcomposite1 \
-  libxdamage1 \
-  libxfixes3 \
-  libxrandr2 \
-  libgbm1 \
-  libpango-1.0-0 \
-  libcairo2 \
-  libasound2 \
-  libxshmfence1 \
-  fonts-liberation \
-  libappindicator3-1 \
-  xdg-utils
-
-echo "Installing Node dependencies..."
+# Install dependencies
 npm install
 
-echo "Generating Prisma Client..."
+# Generate Prisma Client
 npx prisma generate
 
-echo "Building Next.js app..."
+# Build Next.js
 npm run build
+
+# Ensure the Puppeteer cache directory exists
+PUPPETEER_CACHE_DIR=/opt/render/.cache/puppeteer
+mkdir -p $PUPPETEER_CACHE_DIR
+
+# Install Puppeteer and download Chrome
+npx puppeteer browsers install chrome
+
+# Store/pull Puppeteer cache with build cache
+if [[ ! -d $PUPPETEER_CACHE_DIR ]]; then
+  echo "...Copying Puppeteer Cache from Build Cache"
+  cp -R /opt/render/project/src/.cache/puppeteer/chrome/ $PUPPETEER_CACHE_DIR
+else
+  echo "...Storing Puppeteer Cache in Build Cache"
+  cp -R $PUPPETEER_CACHE_DIR /opt/render/project/src/.cache/puppeteer/chrome/
+fi
