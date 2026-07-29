@@ -25,28 +25,79 @@ export const checkTicketAvailability = async (targetDate: string): Promise<{ isA
     // Set a realistic user agent
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36');
     
-    // SKS Tower location is 3
-    await page.goto('https://www.cineplexbd.com/showtimes?location=3', {
-      waitUntil: 'networkidle2', // Wait until no more than 2 network connections for at least 500ms
+    await page.goto('https://ticket.cineplexbd.com/login', {
+      waitUntil: 'networkidle2',
       timeout: 30000,
     });
+
+    // 1. Click GUEST LOGIN
+    const buttons = await page.$$('button');
+    for(let btn of buttons){
+        const text = await page.evaluate(el => el.innerText, btn);
+        if (text && text.includes('GUEST LOGIN')) {
+            await btn.click();
+            break;
+        }
+    }
+    
+    // Wait for the home page to load
+    await new Promise(r => setTimeout(r, 4000));
+    
+    // 2. Select Location
+    await page.evaluate(() => {
+        const divs = document.querySelectorAll('div');
+        for (let d of divs) {
+            if (d.innerText === 'Location') {
+                d.click();
+                break;
+            }
+        }
+    });
+    
+    await new Promise(r => setTimeout(r, 1000));
+    
+    // Click SKS Tower
+    await page.evaluate(() => {
+        const pTags = document.querySelectorAll('p');
+        for (let p of pTags) {
+            if (p.innerText.includes('SKS Tower')) {
+                p.click();
+                break;
+            }
+        }
+    });
+    
+    await new Promise(r => setTimeout(r, 4000));
+
+    // Format the date to match how it might appear on the website.
+    const parsedDate = parseISO(targetDate);
+    const shortFormat = format(parsedDate, 'dd MMM'); // "31 Jul"
+    const longFormat = format(parsedDate, 'dd MMMM'); // "31 July"
+    
+    // 3. Click the target date
+    await page.evaluate((shortF, longF) => {
+        const pTags = document.querySelectorAll('p');
+        for (let p of pTags) {
+            if (p.innerText.includes(shortF) || p.innerText.includes(longF)) {
+                if (p.parentElement) {
+                    p.parentElement.click();
+                }
+                break;
+            }
+        }
+    }, shortFormat, longFormat);
+    
+    await new Promise(r => setTimeout(r, 3000));
 
     // Extract all the text content from the rendered page
     const pageText = await page.evaluate(() => {
       return document.body.innerText || "";
     });
-
-    // Format the date to match how it might appear on the website.
-    // E.g., targetDate is "2026-07-31" -> "31 Jul" or "31 July"
-    const parsedDate = parseISO(targetDate);
-    const shortFormat = format(parsedDate, 'dd MMM'); // "31 Jul"
-    const longFormat = format(parsedDate, 'dd MMMM'); // "31 July"
     
-    // Check if the date string is found anywhere on the page
-    // Also checking for the exact targetDate in case it's in a hidden value attribute (e.g. 2026-07-31)
-    const isAvailable = pageText.includes(shortFormat) || 
-                        pageText.includes(longFormat) || 
-                        pageText.includes(targetDate);
+    // 4. Check if movies are available
+    // If it says "Select Movie (0)" or "No Movie Available", tickets are not out yet.
+    const hasMovies = !pageText.includes('Select Movie (0)') && !pageText.includes('No Movie Available');
+    const isAvailable = hasMovies && pageText.includes('Select Movie');
 
     console.log(`Scrape finished. Found tickets for ${targetDate}? ${isAvailable}`);
 
