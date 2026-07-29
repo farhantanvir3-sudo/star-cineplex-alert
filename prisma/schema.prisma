@@ -1,0 +1,14 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model AlertRequest {
+  id          String   @id @default(cuid())
+  targetDate  String
+  isFulfilled Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
